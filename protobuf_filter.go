@@ -134,7 +134,7 @@ func (f *ProtobufFilter) receiver(fr FilterRunner, h PluginHelper, encoder Encod
         wg.Done()
 }
 
-func (f *ProtobufFilter) Run(fr FilterRunner, h PluginHelper) (err error) 
+func (f *ProtobufFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
         base_name := f.EncoderName
         full_name := fr.Name() + "-" + f.EncoderName
         encoder, ok := h.Encoder(base_name, full_name)
