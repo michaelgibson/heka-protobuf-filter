@@ -31,4 +31,3 @@ flush_bytes = 10000
 protobuf_tag = "protobuf_filtered"
 encoder = "ProtobufEncoder"
 delimitter = "\n"
-
