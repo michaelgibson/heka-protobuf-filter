@@ -5,9 +5,8 @@ import (
         "time"
         "github.com/mozilla-services/heka/message"
         . "github.com/mozilla-services/heka/pipeline"
-        "bytes"
-        "compress/zlib"
         "code.google.com/p/go-uuid/uuid"
+        "github.com/mozilla-services/heka/client"
         "sync"
 )
 
@@ -66,15 +65,10 @@ func (f *ProtobufFilter) committer(fr FilterRunner, h PluginHelper, wg *sync.Wai
                                 Globals().MaxMsgLoops))
             break   
                 }
-                var b bytes.Buffer
-                w := zlib.NewWriter(&b)
-                w.Write(outBatch)
-                w.Close()
-        
                 tagField, _ := message.NewField("ProtobufTag", tag, "")
                 pack.Message.AddField(tagField)
                 pack.Message.SetUuid(uuid.NewRandom())
-                pack.Message.SetPayload(b.String())
+                pack.Message.SetPayload(string(outBatch))
                 fr.Inject(pack)
 
                 outBatch = outBatch[:0]
@@ -99,7 +93,6 @@ func (f *ProtobufFilter) receiver(fr FilterRunner, h PluginHelper, encoder Encod
                 select {  
                 case pack, ok = <-inChan:
                         if !ok {
-                                // Closed inChan => we're shutting down, flush data
                                 if len(outBatch) > 0 {
                                         f.batchChan <- outBatch
                                 }
@@ -107,12 +100,11 @@ func (f *ProtobufFilter) receiver(fr FilterRunner, h PluginHelper, encoder Encod
                                 break
                         } 
                         f.msgLoopCount = pack.MsgLoopCount
-
-                        if outBytes, e = encoder.Encode(pack); e != nil {
+                        encoder2 := client.NewProtobufEncoder(nil)
+                        if e = encoder2.EncodeMessageStream(pack.Message, &outBytes);  e != nil {
                                 fr.LogError(fmt.Errorf("Error encoding message: %s", e))
                         } else {
                             if len(outBytes) > 0 {
-                                outBytes = append(outBytes, '\n')
                                 outBatch = append(outBatch, outBytes...)
 
                                 if len(outBatch) > f.FlushBytes {
