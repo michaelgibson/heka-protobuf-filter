@@ -18,10 +18,12 @@ type ProtobufFilter struct {
 }
 
 type ProtobufFilterConfig struct {
-        FlushInterval uint32 `toml:"flush_interval"`
-        FlushBytes    int    `toml:"flush_bytes"`
-        ProtobufTag       string `toml:"protobuf_tag"`
-        EncoderName   string `toml:"encoder"`
+        FlushInterval       uint32 `toml:"flush_interval"`
+        FlushBytes          int    `toml:"flush_bytes"`
+        ProtobufTag         string `toml:"protobuf_tag"`
+        EncoderName         string `toml:"encoder"`
+        Delimitter          string `toml:"delimitter"` // Delimitter used to append to end of each protobuf for splitting on when decoding later. 
+                                                       // Defaults to '\n'
 }
 
 func (f *ProtobufFilter) ConfigStruct() interface{} {
@@ -29,6 +31,7 @@ func (f *ProtobufFilter) ConfigStruct() interface{} {
         FlushInterval: 1000,
         FlushBytes:    10,
         ProtobufTag:       "protobuf_filtered",
+        Delimitter:     "\n",
         }
 }
 
@@ -62,7 +65,7 @@ func (f *ProtobufFilter) committer(fr FilterRunner, h PluginHelper, wg *sync.Wai
                 pack := h.PipelinePack(f.msgLoopCount)
                 if pack == nil {
                         fr.LogError(fmt.Errorf("exceeded MaxMsgLoops = %d",
-                                h.PipelineConfig().Globals.MaxMsgLoops))
+                                Globals().MaxMsgLoops))
             break   
                 }
                 tagField, _ := message.NewField("ProtobufTag", tag, "")
@@ -84,6 +87,7 @@ func (f *ProtobufFilter) receiver(fr FilterRunner, h PluginHelper, encoder Encod
                 e        error
         )
         ok = true
+        delimitter := f.Delimitter
         outBatch := make([]byte, 0, 10000)
         outBytes := make([]byte, 0, 10000)
         ticker := time.Tick(time.Duration(f.FlushInterval) * time.Millisecond)
@@ -93,6 +97,7 @@ func (f *ProtobufFilter) receiver(fr FilterRunner, h PluginHelper, encoder Encod
                 select {  
                 case pack, ok = <-inChan:
                         if !ok {
+                                // Closed inChan => we're shutting down, flush data
                                 if len(outBatch) > 0 {
                                         f.batchChan <- outBatch
                                 }
@@ -101,11 +106,13 @@ func (f *ProtobufFilter) receiver(fr FilterRunner, h PluginHelper, encoder Encod
                         } 
                         f.msgLoopCount = pack.MsgLoopCount
                         encoder2 := client.NewProtobufEncoder(nil)
+                        //if outBytes, e = encoder.Encode(pack); e != nil {
                         if e = encoder2.EncodeMessageStream(pack.Message, &outBytes);  e != nil {
                                 fr.LogError(fmt.Errorf("Error encoding message: %s", e))
                         } else {
                             if len(outBytes) > 0 {
                                 outBatch = append(outBatch, outBytes...)
+                                outBatch = append(outBatch, delimitter...)
 
                                 if len(outBatch) > f.FlushBytes {
                                         f.batchChan <- outBatch
@@ -117,6 +124,7 @@ func (f *ProtobufFilter) receiver(fr FilterRunner, h PluginHelper, encoder Encod
                         pack.Recycle()
                 case <-ticker:
                         if len(outBatch) > 0 {
+                        outBatch = append(outBatch, delimitter...)
                         f.batchChan <- outBatch
                         outBatch = <-f.backChan
                         } 
@@ -148,4 +156,3 @@ func init() {
         return new(ProtobufFilter)
     })
 }
-
