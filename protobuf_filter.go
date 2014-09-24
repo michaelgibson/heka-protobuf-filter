@@ -65,7 +65,7 @@ func (f *ProtobufFilter) committer(fr FilterRunner, h PluginHelper, wg *sync.Wai
                 pack := h.PipelinePack(f.msgLoopCount)
                 if pack == nil {
                         fr.LogError(fmt.Errorf("exceeded MaxMsgLoops = %d",
-                                Globals().MaxMsgLoops))
+                                h.PipelineConfig.Globals.MaxMsgLoops))
             break   
                 }
                 tagField, _ := message.NewField("ProtobufTag", tag, "")
