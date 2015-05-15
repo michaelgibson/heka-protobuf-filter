@@ -1,7 +1,7 @@
 heka-protobuf-filter
 =========
 
-Protobuf filter for [Mozilla Heka](http://hekad.readthedocs.org/)
+Protobuf filter plugin for [Mozilla Heka](http://hekad.readthedocs.org/)
 
 ProtobufFilter
 ===========
